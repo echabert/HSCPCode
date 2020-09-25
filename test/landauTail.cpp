@@ -73,7 +73,7 @@ void DumpCSV(ofstream& ofile,  Builder* b1, int track){
 
  ofile<<b1->GetRunNb()<<","<<b1->GetEvtNb()<<",";
  ofile<<b1->GetNPV()<<","<<b1->GetInstLumi()<<",";
- ofile<<p<<","<<pt<<","<<eta<<",";
+ ofile<<p<<","<<pt<<","<<eta;
  for(unsigned int cluster = 0;cluster<b1->GetVectTrack()[track].GetVectClusters().size();cluster++){
    ofile<<",";
    ofile<<b1->GetVectTrack()[track].GetVectClusters()[cluster].GetLayerLabel()<<",";
@@ -269,7 +269,7 @@ int main(int argc,char** argv){
 			 if(Ias>cut_ias) Eff_2++;
 			 if(Ias>cut_ias && fQlow<cut_fQlow) Eff_3++;
 			}
-		  DumpCSV(ofile2,b1,track);
+		  if(mean>6)DumpCSV(ofile2,b1,track);
 		  /*
 		  ofile2<<meanTrunc<<","<<meanH2<<","<<mean<<","<<p<<","<<eta;
 		  for(unsigned int cluster = 0;cluster<b1->GetVectTrack()[track].GetVectClusters().size();cluster++){

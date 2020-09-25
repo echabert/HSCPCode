@@ -57,7 +57,15 @@ class HSCPCand:
         self.clusters = _clusters
 	self.p = _p
 	self.pt = _pt
-	selt.eta = _eta
+	self.eta = _eta
+	self.eloss = [c.eloss for c in self.clusters]
+	self.eloss.sort()
+
+    def GetClusterEloss(filtered = False):
+        if filtered: 
+	    return [c.eloss for c in self.clusters if c.IsGood()]
+	else: 
+	    return self.eloss
 
     def Theta():
        return m.atan(m.exp(-eta))*2
@@ -83,7 +91,7 @@ class Estimator:
 	 stddev = pow(sum([c**2 for c in coll])-mean**2,0.5)
 	 return mean,stdev
 
-    def GetHarmonic(self,power):
+    def GetHarmonic(self,lowFrac,highFrac,power):
 	 if not Check(lowFrac,highFrac): return 0
 	 N = len(cluster)
 	 if N<=0: return 0
