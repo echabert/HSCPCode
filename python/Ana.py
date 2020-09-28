@@ -31,7 +31,7 @@ def Statistics(mylist):
    N = len(mylist)
    mean = sum(mylist)/N
    stddev = pow(sum([e**2 for e in mylist])-mean**2,0.5)
-   median = mylist[N/2]
+   median = mylist[int(N/2)]
    return {"mean":mean,"meanError":stddev/sqrt(N),"median":median,"stddev":stddev}
 
 
@@ -44,7 +44,7 @@ def Statistics(mylist):
 
 #study as function of the layers
 layers = range(1,22)
-layerLabels = ["TIB1","TIB2","TIB3","TIB4","TOB1","TOB2","TOB3","TOB4","TOB5","TOB6","TID1","TID1","TEC1","TEC2","TEC3","TEC4","TEC5","TEC6","TEC7","TEC8","TEC9"]
+layerLabels = ["TIB1","TIB2","TIB3","TIB4","TOB1","TOB2","TOB3","TOB4","TOB5","TOB6","TID1","TID2","TEC1","TEC2","TEC3","TEC4","TEC5","TEC6","TEC7","TEC8","TEC9"]
 
 #bins in momenta
 pmin = 0.5
@@ -54,11 +54,12 @@ npsteps = int((pmax-pmin)/pstep)
 pbins = [pmin+i*pstep for i in range(npsteps+1)]
 
 #study estimators
-estimors = {}
+estimators = {}
 #tuple with (IsH2,IsFiltered,lowFrac,highFrac)
-estimors["Mean(0,1)"]=(True,False,0,1)
-estimors["Mean(0.15,1)"]=(True,False,0.15,1)
-estimors["Mean(0,0.85)"]=(True,False,0,0.85)
+UseFilter=False
+estimators["Mean(0,1)"]=(UseFilter,False,0,1)
+estimators["Mean(0.15,1)"]=(UseFilter,False,0.15,1)
+estimators["Mean(0,0.85)"]=(UseFilter,False,0,0.85)
 
 # plotting tuning
 dEdxlabel = "<dEdx> [MeV.cm^{2}/g]"
@@ -95,9 +96,9 @@ for cand in cands:
     #element 0: Event
     #element 1: HSCPCand
     for c in cand[1].clusters:
-        #if c.layer == 14: print(cand[1].p,GetIndice(cand[1].p,pbins))
-	dEdx_P_Layer_list[(c.layer,GetIndice(cand[1].p,pbins))].append(c.eloss)
-	h.Fill(c.layer)
+        #if c.layer == 14: print(cand[1].p,GetIndice(cand[1].p,pbins)
+        if abs(cand[1].eta)<0.1: dEdx_P_Layer_list[(c.layer,GetIndice(cand[1].p,pbins))].append(c.eloss)
+        h.Fill(c.layer)
 h.Draw()
 print(dEdx_P_Layer_list[(14,4)])
 
@@ -105,7 +106,7 @@ print(dEdx_P_Layer_list[(14,4)])
 #statistics per category
 for layer in layers:
     for ibin in range(len(pbins)):
-	dEdx_P_Layer_res[(layer,ibin)] = Statistics(dEdx_P_Layer_list[(layer,ibin)])
+        dEdx_P_Layer_res[(layer,ibin)] = Statistics(dEdx_P_Layer_list[(layer,ibin)])
 
 
 print(dEdx_P_Layer_res)
@@ -119,10 +120,10 @@ for ibin in range(len(pbins)):
     h = TH1F("dEdxPerLayer_"+str(ibin),"",21,1,22)
     for layer in layers:
         #print(dEdx_P_Layer_res[(layer,ibin)])
-	h.SetBinContent(layer,dEdx_P_Layer_res[(layer,ibin)].get("median",0))
-	#h.SetBinContent(layer,dEdx_P_Layer_res[(layer,ibin)].get("mean",0))
+        #h.SetBinContent(layer,dEdx_P_Layer_res[(layer,ibin)].get("median",0))
+        h.SetBinContent(layer,dEdx_P_Layer_res[(layer,ibin)].get("mean",0))
         #h.SetBinError(layer,dEdx_P_Layer_res[(layer,ibin)].get("meanError",0))
-    	#h.GetXaxis().SetBinLabel(layer,layerLabels[layer])
+        h.GetXaxis().SetBinLabel(layer,layerLabels[layer-1])
     dEdx_P_Layer_plots.append(h)
     h.GetYaxis().SetTitle(dEdxlabel)
     h.SetLineWidth(lineWidth)
@@ -134,14 +135,13 @@ for ibin in range(len(pbins)):
 
 legP.Draw()
 
-"""
 ###############################################
 # Study of the estimators
 ###############################################
 
 #create dictionnaries
 Estim_P_list = {}
-Estim_P__res = {}
+Estim_P_res = {}
 for estim in estimators:
     for ibin in range(len(pbins)):
        Estim_P_list[(estim,ibin)] = []
@@ -149,18 +149,21 @@ for estim in estimators:
        
 #run over data
 for cand in cands:
-    for c in cand.clusters:
-        for estim in estimators:
-	    e = Estimator(cand.GetClusterEloss(estim[1]))
-	    value = 0
-            if estim[0]: value = e.GetHarmonic(estim[2],estim[3])
-	    else: value = e.GetMean(estim[2],[3])
-	    Estim_P_list[(e,GetIndice(c.p,pbins))].append(value)
+    #for c in cand[1].clusters:
+    for estim in estimators:
+        print(estimators[estim][2],estimators[estim][3])
+        e = Estimator(cand[1].GetClusterEloss(estimators[estim][1]))
+        value = 0
+        if estimators[estim][0]: value = e.GetHarmonic(estimators[estim][2],estimators[estim][3])
+        else: value = e.GetMean(estimators[estim][2],estimators[estim][3])
+        print(value)
+        Estim_P_list[(estim,GetIndice(cand[1].p,pbins))].append(value)
 
 #statistics per estimator
 for estim in estimators:
     for ibin in range(len(pbins)):
-	Estim_P_res[(e,ibin)] = Statistics(dEdx_P_Layer_list[(c.layer,GetIndice(c.p,pbins))])
+        print(Estim_P_list[(estim,ibin)])
+        Estim_P_res[(estim,ibin)] = Statistics([c[0] for c in Estim_P_list[(estim,ibin)]])
 
 #plots and layout
 estimMean_P_plots = []
@@ -170,18 +173,19 @@ cResoEstim = TCanvas()
 legEstim = TLegend()
 color = 1
 for estim in estimators:
-    hMean = TH1F("hMeanEstim_"+estim,"",pmin,pmax,npsteps+1)
-    hReso = TH1F("hResoEstim_"+estim,"",pmin,pmax,npsteps+1)
+    hMean = TH1F("hMeanEstim_"+estim,"",npsteps+1,pmin,pmax)
+    hReso = TH1F("hResoEstim_"+estim,"",npsteps+1,pmin,pmax)
     for ibin in range(len(pbins)):
-        hMean.SetBinContent(ibin,estim_P_res[(layer,ibin)]["mean"])
-        hMean.SetBinError(ibin,estim_P_res[(layer,ibin)]["meanError"])
-        hMean.SetBinContent(ibin,estim_P_res[(layer,ibin)]["stddev"])
+        print(Estim_P_res[(estim,ibin)]["mean"])
+        hMean.SetBinContent(ibin,Estim_P_res[(estim,ibin)]["mean"])
+        hMean.SetBinError(ibin,Estim_P_res[(estim,ibin)]["meanError"])
+        hMean.SetBinContent(ibin,Estim_P_res[(estim,ibin)]["stddev"])
     estimMean_P_plots.append(hMean)
     estimReso_P_plots.append(hReso)
     hMean.GetXaxis().SetTitle("p [GeV]")
     hReso.GetXaxis().SetTitle("p [GeV]")
     hMean.GetYaxis().SetTitle(dEdxlabel)
-    hREso.GetYaxis().SetTitle("std-dev(<dEdx>)/<dEdx>")
+    hReso.GetYaxis().SetTitle("std-dev(<dEdx>)/<dEdx>")
     hMean.SetLineWidth(lineWidth)
     hReso.SetLineWidth(lineWidth)
     hMean.SetLineColor(color)
@@ -194,8 +198,11 @@ for estim in estimators:
     if color==1: hReso.Draw()
     else: hReso.Draw("same")
     color+=1
+    estimMean_P_plots.append(hMean)
+    estimReso_P_plots.append(hReso)
 
 cMeanEstim.cd()
 cResoEstim.cd()
 legEstim.Draw("same")
-"""
+
+
