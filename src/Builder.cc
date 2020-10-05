@@ -97,6 +97,10 @@ void Builder::SetBranchAdd()
 	chain_->SetBranchAddress("track_phi", &track_phi);
 	chain_->SetBranchAddress("track_chi2", &track_chi2);
 	chain_->SetBranchAddress("track_nvalidhits", &track_nvalidhits);
+	chain_->SetBranchAddress("track_validfraction", &track_validfraction);
+	chain_->SetBranchAddress("track_validlast", &track_validlast);
+	chain_->SetBranchAddress("track_missing", &track_missing);
+	chain_->SetBranchAddress("track_chi2", &track_chi2);
 	chain_->SetBranchAddress("track_index_hit", &track_index_hit);
 	chain_->SetBranchAddress("track_nhits", &track_nhits);
 	chain_->SetBranchAddress("track_ias_ampl_corr", &track_ias_ampl);
@@ -122,6 +126,8 @@ void Builder::SetBranchAdd()
 	chain_->SetBranchAddress("sclus_sat254", &sclus_sat254);
 	chain_->SetBranchAddress("sclus_sat255", &sclus_sat255);
 	chain_->SetBranchAddress("sclus_shape", &sclus_shape);
+	chain_->SetBranchAddress("sclus_clusclean", &sclus_clean);
+	chain_->SetBranchAddress("sclus_clusclean2", &sclus_clean2);
 	chain_->SetBranchAddress("sclus_index_simhit", &sclus_index_simhit);
 	chain_->SetBranchAddress("sclus_nsimhit", &sclus_nsimhit);
 	chain_->SetBranchAddress("sclus_eloss", &sclus_eloss);
@@ -184,7 +190,8 @@ void Builder::GetEntry(int i)
 			//if the eloss is not found/filled in the tree ...
 			sclus_eloss[iclust] = sclus_charge[iclust]*(3.61*pow(10,-9)*247)*1000/dedx_pathlength[iclust];
 			Cluster clust1(dedx_charge[iclust],sclus_charge[iclust]*(3.61*pow(10,-9)*247),dedx_pathlength[iclust],sclus_eloss[iclust],sclus_nstrip[iclust],0,dedx_detid[iclust],dedx_subdetid[iclust],sclus_sat254[iclust],sclus_sat255[iclust],sclus_shape[iclust],sclus_firstsclus[iclust],0,VectStrips,VectSimHits);
-						//cout<<"ah"<<endl;
+			clust1.SetClean(sclus_clean && sclus_clean2);
+			//cout<<"ah"<<endl;
 						//if(clust1.Cut()==false && clust1.Edge()==false) 
 							VectClust.push_back(clust1); //filtre sur les clusters
 						SizeSimHit=VectSimHits.size();
@@ -235,7 +242,7 @@ void Builder::GetEntry(int i)
 					}
 					*/
 					//cout<<"here"<<endl;
-					Track track1(track_pt[itrack],track_p[itrack],track_eta[itrack],track_phi[itrack],track_nhits[itrack],ndedxhits,VectClust);
+					Track track1(track_pt[itrack],track_p[itrack],track_eta[itrack],track_phi[itrack],track_nhits[itrack],ndedxhits,track_chi2[itrack], track_missing[itrack], track_validfraction[itrack],track_validlast[itrack],VectClust);
 					//track1.SetPartId(VectClust[0].GetPartId());
 					//if(ThresholdPartId>=ThresholdPartId_) VectTrack_.push_back(track1); //on ne garde que les traces qui verifient la condition d'au minimum threshold% de partId identique
 					track1.SetIas(track_ias_ampl[itrack]);
