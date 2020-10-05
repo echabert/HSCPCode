@@ -40,7 +40,8 @@ Cluster::Cluster(float dedx_charge,float sclus_charge,float pathlength,float elo
 	partid_				= partId;
 	for(unsigned int i=0;i<VectStrips_.size();i++) ampls_.push_back(VectStrips_[i].GetAmpl());
 	//call cluster cleaning
-	clean_ = clusterCleaning(ampls_,1);
+	//clean_ = clusterCleaning(ampls_,1);
+	clean_ = true;
 }
 
 Cluster::~Cluster()
@@ -248,6 +249,8 @@ int Cluster::GetMaxStrip() const
 	}
 	return max;
 }
+
+void Cluster::SetClean(bool _clean) {clean_ = _clean;}
 
 bool Cluster::IsClean() const {return clean_;}
 

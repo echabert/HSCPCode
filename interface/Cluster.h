@@ -63,4 +63,5 @@ class Cluster{
 		int GetSubDetId() const;
 		int GetMaxStrip() const;
 
+		void SetClean(bool clean);
 };
