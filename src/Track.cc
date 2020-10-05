@@ -12,9 +12,13 @@ Track::Track()
 	phi_		= .0;
 	nhits_		= .0;
 	ndedxhits_	= 0;
+	chi2_ = 0;
+	missing_ = 0;
+	validfraction_ = 0;
+	validlast_ = 0;
 }
 
-Track::Track(float pt,float p,float eta,float phi,float nhits,int ndedxhits,const vector<Cluster> &VectClusters)
+Track::Track(float pt,float p,float eta,float phi,float nhits,int ndedxhits, float chi2, float missing, float validFraction, float validLast,const vector<Cluster> &VectClusters)
 {
 	pt_		= pt;
 	p_		= p;
@@ -22,6 +26,10 @@ Track::Track(float pt,float p,float eta,float phi,float nhits,int ndedxhits,cons
 	phi_	= phi;
 	nhits_	= nhits;
 	ndedxhits_	= ndedxhits;
+	chi2_ = chi2;
+	missing_ = missing;
+	validfraction_ = validFraction;
+	validlast_ = validLast;
 	VectClusters_	= VectClusters;
 }
 
