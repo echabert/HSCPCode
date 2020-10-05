@@ -64,7 +64,23 @@ void Stat(const vector<float>& v,float& mean, float& stddev){
   double sq_sum = std::inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
   stddev = std::sqrt(sq_sum / v.size());
 
+
 }
+//ratio average(2 neigbourg strips) / (leading + 2 neighbourgs)
+float RatioNoverLeadStrip(vector<int> ampls){
+   std::vector<int>::iterator imax = std::max_element(ampls.begin(),ampls.end());
+   float ratio = 0;
+   if(imax!=ampls.begin() && imax!=ampls.end()){
+       imax--;//left strip
+       ratio = *imax;
+       imax++; imax++;//right strip
+       ratio+= *imax;
+       imax--;//central strip
+       ratio/=((ratio+(*imax))*2.);
+   }
+   return ratio;
+}
+
 
 void DumpCSV(ofstream& ofile,  Builder* b1, int track){
  float pt                = b1->GetVectTrack()[track].GetPt();
@@ -90,6 +106,11 @@ void DumpCSV(ofstream& ofile,  Builder* b1, int track){
   ofile<<endl;
 }
 
+bool IsPureTrack(const Track& track, float chi2Cut = 2, float missingCut = 1, float validF = 0.99, float validL = 0.99){
+   if(track.GetChi2()<chi2Cut && track.GetMissing()<chi2Cut && track.GetValidFraction()>validF && track.GetValidLast()>validL) return true;
+   return false;
+}
+
 
 TCanvas* CreateCanvasFor2D(const char*title, const char* xtitle, const char*ytitle,TH2D* hlowpt, TH2D* hhighpt, TH2D* hhighdedx){
   TCanvas* c = new TCanvas(title);
@@ -113,7 +134,8 @@ TCanvas* CreateCanvasFor2D(const char*title, const char* xtitle, const char*ytit
 }
 
 int main(int argc,char** argv){
-
+    //int nthreads = 4;
+    //ROOT::EnableImplicitMT(nthreads);
     TChain chain;
 	chain.SetName("stage/ttree");
 	for(int i=1;i<argc;i++) chain.Add(argv[i]);
@@ -153,19 +175,39 @@ int main(int argc,char** argv){
     TH2D hDeDxVsP("hDeDxVsP","",500,0,5,1000,0,50);
     TH2D hDeDxVsP_trunc("hDeDxVsP_trunc","",500,0,5,1000,0,50);
     TH2D hDeDxVsP_h2("hDeDxVsP_h2","",500,0,5,1000,0,50);
-    TH1F hQMIP("hQMIP","",1000,0,50);
-    TH1F hQHSCP("hHSCP","",1000,0,50);
+    TH1F hQMIP("hQMIP","",200,0,20);
+    TH1F hQHSCP("hHSCP","",200,0,20);
     TH2D hQHSCPvsPLenght("hQHSCPvsPLenght","",200,0,30,100,0,1);
     TH1F hIasMIP("hIasMIP","",100,0,1);
     TH1F hIasHSCP("hIasHSCP","",100,0,1);
     TH2F hIasVsfQLow("hIasVsfQLow","",10,0,1,10,0,1);
     //TH2F hDeDxVsP("hDeDxVsP","",100,0,5,60,0,30);
 
+    TH1F hLayer_Tail_highpt("hLayer_Tail_highpt","",21,1,21);
+    TH1F hLayer_highpt("hLayer_highpt","",21,1,21);
+
+
+    TH2F hNstripsDe_MIP_lowp("hNstripsDe_MIP_lowp","",100,0,8,8,1,8);
+    TH2F hNstripsDe_MIP_highp("hNstripsDe_MIP_highp","",100,0,8,8,1,8);
+    TH2F hNstripsDe_deuterons("hNstripsDe_deuterons","",100,0,8,8,1,8);
+    TH2F hNstripsPath_MIP_lowp("hNstripsPath_MIP_lowp","",50,0,1,8,1,8);
+    TH2F hNstripsPath_MIP_highp("hNstripsPath_MIP_highp","",50,0,1,8,1,8);
+    TH2F hNstripsPath_deuterons("hNstripsPath_deuterons","",50,0,1,8,1,8);
+    TH2F hRatioDe_MIP_lowp("hRatioDe_MIP_lowp","",50,0,8,10,0,0.6);
+    TH2F hRatioDe_MIP_highp("hRatioDe_MIP_highp","",50,0,8,10,0,0.6);
+    TH2F hRatioDe_deuterons("hRatioDe_deuterons","",50,0,8,10,0,0.6);
+
+
+    TH1F hClusterCounter_highp("hClusterCounter_highp","",5,1,5);
+    TH2F hMeanClean_highp("hClusterCounter_highp","",50,0,8,5,1,5);
+
     TF1 fBB("fBB","[0]/(x*x)+[1]",0,10);
     fBB.SetParameters(3.5,3.96);
 
     cout<<"N-entries = "<<nentries<<endl;
-    //if(nentries>500000) nentries = 200000;
+    if(nentries>500000) nentries = 100000;
+
+    bool applyCleaning = true;
 
     float lowpcut = 0.7;
     float highpcut = 200;
@@ -174,7 +216,7 @@ int main(int argc,char** argv){
     float cut_fQlow = 0.05;
     float cut_fQhigh = 0.3;
     float cut_mean = 6;
-    float cut_ias = 0.2;
+    float cut_ias = 0.375;//0.2
 
     float EffSig_Stddev = 0;
     float EffSig_fQLow = 0;
@@ -200,6 +242,8 @@ int main(int argc,char** argv){
 		//cout<<"there"<<endl;
             vector<int> vect_partID;
             vector<float> vect_eloss;
+            vector<float> vect_path;
+            vector<float> vect_layer;
             vector<float> vect_charge;
             vector<float> vect_dedx;
             vector<float> vect_dqdx;
@@ -222,8 +266,23 @@ int main(int argc,char** argv){
                 float charge        = b1->GetVectTrack()[track].GetVectClusters()[cluster].GetSclusCharge();
                 float eloss         = b1->GetVectTrack()[track].GetVectClusters()[cluster].GetEloss();
                 //cout<<"QE = "<<charge<<" "<<eloss<<endl;
-		vect_eloss.push_back(eloss);
+		if (applyCleaning){
+		  if(b1->GetVectTrack()[track].GetVectClusters()[cluster].IsClean() && b1->GetVectTrack()[track].GetVectClusters()[cluster].GetShape() && \
+		     !b1->GetVectTrack()[track].GetVectClusters()[cluster].GetSat254() and !b1->GetVectTrack()[track].GetVectClusters()[cluster].GetSat255() )
+		  {
+		  	vect_eloss.push_back(eloss);
+			vect_path.push_back(b1->GetVectTrack()[track].GetVectClusters()[cluster].GetPathLength());
+			vect_layer.push_back(b1->GetVectTrack()[track].GetVectClusters()[cluster].GetLayerLabel());
+	    	  }
+		else {
+			vect_eloss.push_back(eloss);
+			vect_path.push_back(b1->GetVectTrack()[track].GetVectClusters()[cluster].GetPathLength());
+			vect_layer.push_back(b1->GetVectTrack()[track].GetVectClusters()[cluster].GetLayerLabel());
+		}
+		}
 	    }
+
+
 
 	    //if(fabs(eta)<1.4) continue ;
 	    Estimator estim(vect_eloss);
@@ -231,6 +290,54 @@ int main(int argc,char** argv){
 	    float meanH2 = estim.GetHarmonic2();
 	    //cout<<"size: "<<vect_eloss.size()<<endl;
 	    float mean=0, stddev=0;
+	    
+	    
+	    //Investigation for nstrip vs dE
+	    if(IsPureTrack(b1->GetVectTrack()[track])){
+	       if(b1->GetVectTrack()[track].GetP()<0.6 && meanTrunc<4)
+	    	for(int cluster=0;cluster<b1->GetVectTrack()[track].GetNCluster();cluster++){
+		        int label =  b1->GetVectTrack()[track].GetVectClusters()[cluster].GetLayerLabel();
+			if(label<5 || label>10) continue;
+			float path = b1->GetVectTrack()[track].GetVectClusters()[cluster].GetPathLength();
+			float eloss = b1->GetVectTrack()[track].GetVectClusters()[cluster].GetEloss();
+			float nstrips = b1->GetVectTrack()[track].GetVectClusters()[cluster].GetNStrip();
+			hNstripsDe_MIP_lowp.Fill( eloss*path*10, nstrips);
+                	hNstripsPath_MIP_lowp.Fill( path*10, nstrips);
+			float ratio = RatioNoverLeadStrip(b1->GetVectTrack()[track].GetVectClusters()[cluster].GetAmpls());
+			if(ratio>1) cerr<<"Ratio>1"<<endl;
+			hRatioDe_MIP_lowp.Fill(eloss*path*10,ratio);
+		}
+	       if(b1->GetVectTrack()[track].GetP()>10 && meanTrunc<4)
+	    	for(int cluster=0;cluster<b1->GetVectTrack()[track].GetNCluster();cluster++){
+		        int label =  b1->GetVectTrack()[track].GetVectClusters()[cluster].GetLayerLabel();
+			if(label<5 || label>10) continue;
+			float path = b1->GetVectTrack()[track].GetVectClusters()[cluster].GetPathLength();
+			float eloss = b1->GetVectTrack()[track].GetVectClusters()[cluster].GetEloss();
+			float nstrips = b1->GetVectTrack()[track].GetVectClusters()[cluster].GetNStrip();
+			hNstripsDe_MIP_highp.Fill(eloss*path*10, nstrips);
+			hNstripsPath_MIP_highp.Fill(path*10, nstrips);
+			float ratio = RatioNoverLeadStrip(b1->GetVectTrack()[track].GetVectClusters()[cluster].GetAmpls());
+			if(ratio>1) cerr<<"Ratio>1"<<endl;
+			hRatioDe_MIP_highp.Fill(eloss*path*10,ratio);
+		}
+		//deuterons
+		if(estim.GetTrunc40()>fBB.Eval(p))
+	    	   for(int cluster=0;cluster<b1->GetVectTrack()[track].GetNCluster();cluster++){
+		        int label =  b1->GetVectTrack()[track].GetVectClusters()[cluster].GetLayerLabel();
+			if(label<5 || label>10) continue;
+			float path = b1->GetVectTrack()[track].GetVectClusters()[cluster].GetPathLength();
+			float eloss = b1->GetVectTrack()[track].GetVectClusters()[cluster].GetEloss();
+			float nstrips = b1->GetVectTrack()[track].GetVectClusters()[cluster].GetNStrip();
+			hNstripsDe_deuterons.Fill(eloss*path*10, nstrips);
+			hNstripsPath_deuterons.Fill(path*10, nstrips);
+			float ratio = RatioNoverLeadStrip(b1->GetVectTrack()[track].GetVectClusters()[cluster].GetAmpls());
+			if(ratio>1) cerr<<"Ratio>1"<<endl;
+			hRatioDe_deuterons.Fill(eloss*path*10,ratio);
+		}
+	    }
+	    //
+	    
+	    
 	    if(vect_eloss.size()>0){
 	    	//cout<<"val = "<<vect_eloss[0]<<endl;
 		Stat(vect_eloss,mean,stddev);
@@ -269,7 +376,23 @@ int main(int argc,char** argv){
 			 if(Ias>cut_ias) Eff_2++;
 			 if(Ias>cut_ias && fQlow<cut_fQlow) Eff_3++;
 			}
-		  if(mean>6)DumpCSV(ofile2,b1,track);
+		  if(mean>6){
+		    int nclusters = b1->GetVectTrack()[track].GetVectClusters().size();
+		    int nclusters_clean = 0;
+		    int nclusters_cut = 0;
+		    int nclsuters_clean_cut = 0;
+		    //vector<float>
+		    for(unsigned int icluster = b1->GetVectTrack()[track].GetVectClusters().size();icluster++){
+		        bool clean = b1->GetVectTrack()[track].GetVectClusters()[icluster].IsClean();
+			bool cut = RatioNoverLeadStrip( b1->GetVectTrack()[track].GetVectClusters()[icluster].GetAmpls())>0.2;
+			if(clean) hClusterCounter_highp.SetBinContent(3,hClusterCounter_highp.GetBinContent(3));
+			if(cut) hClusterCounter_highp.SetBinContent(4,hClusterCounter_highp.GetBinContent(4));
+			if(clean && cut) hClusterCounter_highp.SetBinContent(5,hClusterCounter_highp.GetBinContent(5));
+		    }
+		    //hMeanClean_highp
+		    hClusterCounter_highp.SetBinContent(2,hClusterCounter_highp.GetBinContent(2)+nclusters);
+		    DumpCSV(ofile2,b1,track);
+		  }
 		  /*
 		  ofile2<<meanTrunc<<","<<meanH2<<","<<mean<<","<<p<<","<<eta;
 		  for(unsigned int cluster = 0;cluster<b1->GetVectTrack()[track].GetVectClusters().size();cluster++){
@@ -304,8 +427,9 @@ int main(int argc,char** argv){
 			hQMIP.Fill(vect_eloss[i]);
 		}
 		//if (p<0.75 && mean>9){
-		if (p<1.5 && estim.GetTrunc40()>fBB.Eval(p)){
-		//if (p>200 && mean>6){
+		//if (p<1.5 && estim.GetTrunc40()>fBB.Eval(p)){
+		if (p>200 && mean>6){
+		//if (p>200 && estim.GetTrunc40()>fBB.Eval(p)){
 		  DumpCSV(ofile,b1,track);
 		  /*
 		  ofile<<meanTrunc<<","<<meanH2<<","<<mean<<","<<p<<","<<eta;
@@ -329,13 +453,16 @@ int main(int argc,char** argv){
 		//if (p<1 && mean>9){
 		  for(int i=0;i<vect_eloss.size();i++){ 
 			hQHSCP.Fill(vect_eloss[i]);
-		        /*
+		        if(vect_eloss[i]>6) hLayer_Tail_highpt.Fill(vect_layer[i]);
+		        hLayer_highpt.Fill(vect_layer[i]);
+			/*
 			cout<<b1->GetVectTrack()[track].GetVectClusters()[i].GetEloss()<<"\t";
 		        cout<<b1->GetVectTrack()[track].GetVectClusters()[i].GetDedxCharge()<<"\t";
 		        cout<<b1->GetVectTrack()[track].GetVectClusters()[i].GetSclusCharge()<<"\t";
 		        cout<<b1->GetVectTrack()[track].GetVectClusters()[i].GetPathLength()<<endl;
 		  	*/
-			hQHSCPvsPLenght.Fill(vect_eloss[i],b1->GetVectTrack()[track].GetVectClusters()[i].GetPathLength()*10);
+			//hQHSCPvsPLenght.Fill(vect_eloss[i],b1->GetVectTrack()[track].GetVectClusters()[i].GetPathLength()*10);
+			hQHSCPvsPLenght.Fill(vect_eloss[i],vect_path[i]*10);
 		  }
 		}
 	    }
@@ -367,8 +494,8 @@ int main(int argc,char** argv){
     cout<<"# fQHigh "<<endl;
     cout<<"Eff(sig) = "<<EffSig_fQHigh<<endl;
     cout<<"Eff(bkg) = "<<EffBkg_fQHigh<<endl;
-    cout<<"Eff(Ias) = "<<Eff_1<<endl;
-    cout<<"Eff(fQlow) = "<<Eff_2<<endl;
+    cout<<"Eff(Ias) = "<<Eff_2<<endl;
+    cout<<"Eff(fQlow) = "<<Eff_1<<endl;
     cout<<"Eff(Ias+fQlow) = "<<Eff_3<<endl;
     cout<<"##########################"<<endl;
 
@@ -400,7 +527,28 @@ int main(int argc,char** argv){
     hIasMIP.Write();
     hIasHSCP.Write();
     hIasVsfQLow.Write();   
+
+
+    TEfficiency hLayer_highValues(hLayer_Tail_highpt,hLayer_highpt);
+    TCanvas cEff;
+    hLayer_highValues.Draw();
+    cEff.Write();
+    hLayer_highValues.Write();
+    hLayer_Tail_highpt.Write();
+    hLayer_highpt.Write();
     //hDeDxVsP.Write();
+
+    hNstripsDe_MIP_lowp.Write();
+    hNstripsDe_MIP_highp.Write();
+    hNstripsDe_deuterons.Write();
+    hNstripsPath_MIP_lowp.Write();
+    hNstripsPath_MIP_highp.Write();
+    hNstripsPath_deuterons.Write();
+    hRatioDe_MIP_lowp.Write();
+    hRatioDe_MIP_highp.Write();
+    hRatioDe_deuterons.Write();
+
+     hClusterCounter_highp.Write();
 
     TCanvas* cfQLowVsMean = CreateCanvasFor2D("cfQLowVsMean","<dEdx> [MeV.cm#^{2}/g]","fraction cluster dEdX<3.5 MeV/g/cm#^2",&hfQLowVsMean_lowpt,&hfQLowVsMean_highpt,&hfQLowVsMean_highDeDx);
     TCanvas* cfQHighVsMean = CreateCanvasFor2D("cfQHighVsMean","<dEdx> [MeV.cm#^2/g]","fraction cluster dEdX> <dEdX>*1.25 MeV.cm#^2/g",&hfQHighVsMean_lowpt,&hfQHighVsMean_highpt,&hfQHighVsMean_highDeDx);
