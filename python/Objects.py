@@ -15,7 +15,9 @@ class Cluster:
         self.detid = 0
 
     def IsGood(self):
-    	return self.shape and self.clean and not self.edge and not self.cut 
+    	#return self.shape and self.clean and not self.edge and not self.cut 
+    	#return self.clean and not self.edge and not self.cut 
+    	return self.clean 
 
     def IsSat(self):
     	return self.nsat>0
@@ -63,7 +65,8 @@ class HSCPCand:
 
     def GetClusterEloss(self,filtered = False):
         if filtered: 
-            return [c.eloss for c in self.clusters if c.IsGood()]
+            print(len(self.clusters),len([c.eloss for c in self.clusters if c.IsGood()])," !!")
+	    return [c.eloss for c in self.clusters if c.IsGood()]
         else: 
             return self.eloss
 
@@ -73,7 +76,7 @@ class HSCPCand:
 class Estimator:
    
     def __init__(self,_clusters):
-        self.clusters = _clusters
+        self.clusters = _clusters[:]
         self.clusters.sort()
 
     def Check(self,lowFrac,highFrac):
@@ -82,13 +85,15 @@ class Estimator:
         if highFrac<lowFrac: return False
         return True
 
-    def GetMean(self, lowFrac=0, highFrac=1):
+    def GetMean(self, lowFrac=0., highFrac=1.):
         if not self.Check(lowFrac,highFrac): return 0
         N = len(self.clusters)
         if N<=0: return 0
-        coll = self.clusters[int(lowFrac/N):int(highFrac/N)]
-        mean = sum(coll)/N
-        stddev = pow(sum([c**2 for c in coll])-mean**2,0.5)
+        coll = self.clusters[int(lowFrac*N):int(highFrac*N)]
+	N = len(coll)
+        if N<=0: return 0
+	mean = sum(coll)/N
+        stddev = pow(sum([c**2 for c in coll])/N-mean**2,0.5)
         return mean,stddev
 
     def GetHarmonic(self,lowFrac=0,highFrac=1,power=2):
@@ -96,7 +101,7 @@ class Estimator:
             return 0
         N = len(self.clusters)
         if N<=0: return 0
-        coll = self.clusters[int(lowFrac/N):int(highFrac/N)]
+        coll = self.clusters[int(lowFrac*N):int(highFrac*N)]
         N = len(coll)
         if N<=0: return 0
         mean = pow(sum([pow(c,-power)for c in coll])/N,-1./power)
