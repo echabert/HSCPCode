@@ -18,6 +18,7 @@ Cluster::Cluster()
 	shape_				= false;
 	partid_				= 0;
         clean_				= true;
+        cleanXT_				= true;
 }
 
 
@@ -42,6 +43,7 @@ Cluster::Cluster(float dedx_charge,float sclus_charge,float pathlength,float elo
 	//call cluster cleaning
 	//clean_ = clusterCleaning(ampls_,1);
 	clean_ = true;
+	cleanXT_ = true;
 }
 
 Cluster::~Cluster()
@@ -251,7 +253,9 @@ int Cluster::GetMaxStrip() const
 }
 
 void Cluster::SetClean(bool _clean) {clean_ = _clean;}
+void Cluster::SetCleanXT(bool _clean) {cleanXT_ = _clean;}
 
 bool Cluster::IsClean() const {return clean_;}
+bool Cluster::IsCleanXT() const {return cleanXT_;}
 
 vector<int> Cluster::GetAmpls() const {return ampls_;}
