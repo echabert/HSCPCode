@@ -3,7 +3,7 @@ from Loader import *
 
 from math import sqrt
 
-from ROOT import TH1F, TH2F, TProfile, TCanvas, TLegend, TFile, gStyle
+from ROOT import TF1, TH1F, TH2F, TProfile, TCanvas, TLegend, TFile, gStyle
 
 
 gStyle.SetOptStat(0)
@@ -27,11 +27,13 @@ def GetIndice(val,bins):
 
 
 def Statistics(mylist):
+   #print("In stat",len(mylist))
    if len(mylist) == 0: return {}
    mylist.sort()
    N = len(mylist)
    mean = sum(mylist)/N
-   stddev = pow(sum([e**2 for e in mylist])-mean**2,0.5)
+   #print("mean = ",mean)
+   stddev = pow(sum([e**2 for e in mylist])/N-mean**2,0.5)
    median = mylist[int(N/2)]
    return {"mean":mean,"meanError":stddev/sqrt(N),"median":median,"stddev":stddev}
 
@@ -81,26 +83,53 @@ layerLabels = ["TIB1","TIB2","TIB3","TIB4","TOB1","TOB2","TOB3","TOB4","TOB5","T
 #bins in momenta
 pfactor=1   #1000 for stop at 2 TeV
 pmin = 0.5*pfactor
-pmax = 1.0*pfactor #1.5
+pmax = 1.4*pfactor #1.5
 pstep = 0.1*pfactor
 npsteps = int((pmax-pmin)/pstep)
 pbins = [pmin+i*pstep for i in range(npsteps+1)]
+#bin in eta
+etamin = 0
+etamax = 1.5
+etastep = 0.1
+netasteps = int((etamax-etamin)/etastep)
+ebins = [etamin+i*etastep for i in range(netasteps+1)]
+#nhits
+nhitsmin = 5
+nhitsmax = 25
+
 
 #study estimators
 estimators = {}
 #tuple with (IsH2,IsFiltered,lowFrac,highFrac)
 UseFilter=False
-estimators["Mean(0,1)"]=(UseFilter,False,0,1)
-estimators["Mean(0.15,1)"]=(UseFilter,False,0.15,1)
-estimators["Mean(0,0.85)"]=(UseFilter,False,0,0.85)
+UseHarmonic=False
+estimators["Mean(0,1)"]=(UseFilter,UseHarmonic,0,1)
+estimators["Mean(0.15,1)"]=(UseFilter,UseHarmonic,0.15,1)
+#estimators["Mean(0,0.9)"]=(UseFilter,UseHarmonic,0,0.9)
+estimators["Mean(0,0.85)"]=(UseFilter,UseHarmonic,0,0.85)
+#estimators["Mean(0,0.75)"]=(UseFilter,UseHarmonic,0,0.75)
+#estimators["Mean(0,0.65)"]=(UseFilter,UseHarmonic,0,0.65)
+estimators["Mean(0.15,0.85)"]=(UseFilter,UseHarmonic,0.15,0.85)
+estimators["Mean(0.25,0.75)"]=(UseFilter,UseHarmonic,0.25,0.75)
+#estimators["Mean(0,0.6)"]=(UseFilter,UseHarmonic,0,0.6)
+#estimators["Mean(0.15,0.7)"]=(UseFilter,UseHarmonic,0.15,0.7)
+#estimators["Mean(0.4,0.7)"]=(UseFilter,UseHarmonic,0.4,0.7)
 
 # plotting tuning
 dEdxlabel = "<dEdx> [MeV.cm^{2}/g]"
 lineWidth = 2
 
+#other constants
+deuteronMass = 1.8756 #GeV
+
+
+#fit results
+resFile = open("fitRes.txt",'w')
+
 #file to be analyzed
 #filename = "../bin/deuteron.csv"
 filename = "deuteron.csv"
+#filename = "deuteron_light.csv"
 #filename = "stop2000.csv"
 #filename = "bkg.csv"
 
@@ -110,7 +139,7 @@ cands = LoadCSV(filename)
 print("We ran over",len(cands),"candidates")
 
 
-
+"""
 ###############################################
 # Study of the timing as function of the layer
 ###############################################
@@ -226,35 +255,91 @@ for ibin in range(len(pbins)):
 
 legP.Draw()
 
+"""
+
+
+hEtaVsP = TH2F("hEtaVsP","",npsteps,pmin,pmax,netasteps,etamin,etamax)
+hEta = TH1F("hEta","",netasteps,etamin,etamax)
+hP = TH1F("hP","",npsteps,pmin,pmax)
+hNhits = TH1F("nHits","",nhitsmax-nhitsmin,nhitsmin,nhitsmax)
+for cand in cands:
+    hEtaVsP.Fill(cand[1].p, cand[1].eta)
+    hEta.Fill(cand[1].eta)
+    hP.Fill(cand[1].p)
+    hNhits.Fill(len(cand[1].GetClusterEloss()))
+
+cEtaVsP = TCanvas()
+hEtaVsP.Draw("COLZ")
+print(hEtaVsP.GetCorrelationFactor())
+c1Dplots = TCanvas()
+c1Dplots.Divide(2,2)
+c1Dplots.cd(1)
+hP.Draw()
+c1Dplots.cd(2)
+hEta.Draw()
+c1Dplots.cd(3)
+hNhits.Draw()
+
+
+#exit()
+
 ###############################################
 # Study of the estimators
 ###############################################
 
+
+
 #create dictionnaries
+#per momenta bins
 Estim_P_list = {}
 Estim_P_res = {}
+#per momenta, #nhits, eta bins
+Estim_all_list = {}
+Estim_all_res = {}
+
 for estim in estimators:
     for ibin in range(len(pbins)):
        Estim_P_list[(estim,ibin)] = []
        Estim_P_res[(estim,ibin)] = None
-       
+       #add info about #nhits - eta
+       for ebin in range(len(ebins)):
+          for nhits in range(nhitsmin,nhitsmax+1):
+	      Estim_all_list[(estim,ibin,ebin,nhits)] = []
+	      Estim_all_res[(estim,ibin,ebin,nhits)] = None
+
 #run over data
 for cand in cands:
     #for c in cand[1].clusters:
     for estim in estimators:
-        print(estimators[estim][2],estimators[estim][3])
-        e = Estimator(cand[1].GetClusterEloss(estimators[estim][1]))
-        value = 0
-        if estimators[estim][0]: value = e.GetHarmonic(estimators[estim][2],estimators[estim][3])
+        #print("Estimator = ",estimators[estim][2],estimators[estim][3])
+        #print("collection size: ",len(cand[1].GetClusterEloss(estimators[estim][1])))
+	e = Estimator(cand[1].GetClusterEloss(estimators[estim][0]))
+        #print(cand[1].GetClusterEloss(estimators[estim][1]))
+	#print(e.GetMean())
+	value = 0
+	if estimators[estim][1]: value = e.GetHarmonic(estimators[estim][2],estimators[estim][3])
         else: value = e.GetMean(estimators[estim][2],estimators[estim][3])
-        print(value)
+        #print("value = ",value)
         Estim_P_list[(estim,GetIndice(cand[1].p,pbins))].append(value)
+	if 0<=GetIndice(cand[1].eta,ebins)<=len(ebins) and nhitsmin<= len(cand[1].GetClusterEloss(estimators[estim][0])) <nhitsmax:
+	    Estim_all_list[(estim,GetIndice(cand[1].p,pbins),GetIndice(cand[1].eta,ebins),len(cand[1].GetClusterEloss(estimators[estim][0])))].append(value)
+
+
+#print(Estim_all_list)
+#exit()
 
 #statistics per estimator
 for estim in estimators:
     for ibin in range(len(pbins)):
-        print(Estim_P_list[(estim,ibin)])
-        Estim_P_res[(estim,ibin)] = Statistics([c[0] for c in Estim_P_list[(estim,ibin)]])
+        #print(Estim_P_list[(estim,ibin)])
+        #print(([c[0] for c in Estim_P_list[(estim,ibin)]]))
+	Estim_P_res[(estim,ibin)] = Statistics([c[0] for c in Estim_P_list[(estim,ibin)]])
+	#print((estim,ibin),Estim_P_res[(estim,ibin)])
+        for ebin in range(len(ebins)):
+            for nhits in range(nhitsmin, nhitsmax):
+	        Estim_all_res[(estim,ibin,ebin,nhits)] = Statistics([c[0] for c in Estim_all_list[(estim,ibin,ebin,nhits)]])
+		#print("size = ",len(Estim_all_list[(estim,ibin,ebin,nhits)]))
+		#print("THERE ",Estim_all_res[(estim,ibin,ebin,nhits)])
 
 #plots and layout
 estimMean_P_plots = []
@@ -263,14 +348,17 @@ cMeanEstim = TCanvas()
 cResoEstim = TCanvas()
 legEstim = TLegend()
 color = 1
+#fit function
+BBfunc = TF1("BBFunc","[0]+[1]/(x*x)",0,2)
 for estim in estimators:
-    hMean = TH1F("hMeanEstim_"+estim,"",npsteps+1,pmin,pmax)
-    hReso = TH1F("hResoEstim_"+estim,"",npsteps+1,pmin,pmax)
+    hMean = TH1F("hMeanEstim_"+estim,"",npsteps,pmin,pmax)
+    hReso = TH1F("hResoEstim_"+estim,"",npsteps,pmin,pmax)
     for ibin in range(len(pbins)):
-        print(Estim_P_res[(estim,ibin)]["mean"])
-        hMean.SetBinContent(ibin,Estim_P_res[(estim,ibin)]["mean"])
+        #print(Estim_P_res[(estim,ibin)]["mean"])
+	#print((estim,ibin),Estim_P_res[(estim,ibin)])
+	hMean.SetBinContent(ibin,Estim_P_res[(estim,ibin)]["mean"])
         hMean.SetBinError(ibin,Estim_P_res[(estim,ibin)]["meanError"])
-        hMean.SetBinContent(ibin,Estim_P_res[(estim,ibin)]["stddev"])
+        hReso.SetBinContent(ibin,Estim_P_res[(estim,ibin)]["stddev"]/Estim_P_res[(estim,ibin)]["mean"])
     estimMean_P_plots.append(hMean)
     estimReso_P_plots.append(hReso)
     hMean.GetXaxis().SetTitle("p [GeV]")
@@ -281,7 +369,7 @@ for estim in estimators:
     hReso.SetLineWidth(lineWidth)
     hMean.SetLineColor(color)
     hReso.SetLineColor(color)
-    legEstim.AddEntry(h,estim,'l')
+    legEstim.AddEntry(hMean,estim,'l')
     cMeanEstim.cd()
     if color==1: hMean.Draw()
     else: hMean.Draw("same")
@@ -291,8 +379,95 @@ for estim in estimators:
     color+=1
     estimMean_P_plots.append(hMean)
     estimReso_P_plots.append(hReso)
+    #perform BB fit
+    resFit = hMean.Fit(BBfunc,"S")
+    resFile.write(estim+" "+str(BBfunc.GetParameters()[0])+" "+str(BBfunc.GetParameters()[1]/(deuteronMass*deuteronMass))+" "+str(resFit.Chi2())+"\n")
 
+
+#check bias due to eta
+#assign weight based on  nhist and p bins ...
+legBias = TLegend()
+plotBias = []
+cEtaBias = TCanvas()
+color = 1
+for estim in estimators:
+    hEtaBias = TH1F("hEtaBias_"+estim,"",netasteps,etamin,etamax)
+    for ebin in range(len(ebins)):
+        #print("eta bin",ebin)
+	diff = []
+	uncert = []
+	totalweight = 0
+	for pbin in range(len(pbins)):
+            Estim_P_res[(estim,pbin)]  
+            for nhits in range(nhitsmin,nhitsmax):
+                 if Estim_all_res.get((estim,pbin,ebin,nhits),None) is not None:
+		     mean = Estim_all_res[(estim,pbin,ebin,nhits)].get("mean",0)
+		     error = Estim_all_res[(estim,pbin,ebin,nhits)].get("meanError",0)
+		     weight = len(Estim_all_list[(estim,pbin,ebin,nhits)])
+		     if mean>0: 
+		         diff.append((mean-Estim_P_res[(estim,pbin)]["mean"])*weight)
+		         uncert = [pow(error*weight,2)]
+			 totalweight+=weight
+	bias = 0
+	biasError = 0
+	#print(sum(diff),totalweight)
+	if totalweight>0:  
+	    bias = sum(diff)/totalweight
+            biasError = sqrt(sum(uncert)/pow(totalweight,2))
+	hEtaBias.SetBinContent(ebin,bias)
+	if biasError>0 and biasError<100:	hEtaBias.SetBinError(ebin,biasError)
+    hEtaBias.SetLineWidth(lineWidth)
+    hEtaBias.SetLineColor(color)
+    hEtaBias.GetXaxis().SetTitle("track #eta")
+    hEtaBias.GetYaxis().SetTitle("bias of I_{h}")
+    legBias.AddEntry(hEtaBias,estim,'l')
+    if color==1: hEtaBias.Draw()
+    else: hEtaBias.Draw("same")
+    color+=1
+    plotBias.append(hEtaBias)
+legBias.Draw("same")
+
+#check bias due to nhits
+cNhitsBias = TCanvas()
+color = 1
+for estim in estimators:
+    nbins = nhitsmax-nhitsmin
+    hNhitsBias = TH1F("hNhitsBias_"+estim,"",nbins,nhitsmin,nhitsmax)
+    for nhits in range(nhitsmin,nhitsmax):
+	diff = []
+	uncert = []
+	totalweight = 0
+	for pbin in range(len(pbins)):
+            Estim_P_res[(estim,pbin)]  
+            for ebin in range(len(ebins)):
+                 if Estim_all_res.get((estim,pbin,ebin,nhits),None) is not None:
+		     mean = Estim_all_res[(estim,pbin,ebin,nhits)].get("mean",0)
+		     error = Estim_all_res[(estim,pbin,ebin,nhits)].get("meanError",0)
+		     weight = len(Estim_all_list[(estim,pbin,ebin,nhits)])
+		     if mean>0: 
+		         diff.append((mean-Estim_P_res[(estim,pbin)]["mean"])*weight)
+		         uncert = [pow(error*weight,2)]
+			 totalweight+=weight
+	bias = 0
+	biasError = 0
+	#print(sum(diff),totalweight)
+	if totalweight>0:  
+	    bias = sum(diff)/totalweight
+            biasError = sqrt(sum(uncert)/pow(totalweight,2))
+	hNhitsBias.SetBinContent(nhits-nhitsmin+1,bias)
+	if biasError>0 and biasError<100:	hNhitsBias.SetBinError(nhits-nhitsmin+1,biasError)
+    hNhitsBias.SetLineWidth(lineWidth)
+    hNhitsBias.SetLineColor(color)
+    hNhitsBias.GetXaxis().SetTitle("#hits")
+    hNhitsBias.GetYaxis().SetTitle("bias of I_{h}")
+    if color==1: hNhitsBias.Draw()
+    else: hNhitsBias.Draw("same")
+    color+=1
+    plotBias.append(hNhitsBias)
+legBias.Draw("same")
+resFile.close()
 cMeanEstim.cd()
+legEstim.Draw("same")
 cResoEstim.cd()
 legEstim.Draw("same")
 
