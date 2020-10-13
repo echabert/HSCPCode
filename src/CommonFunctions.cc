@@ -1,5 +1,6 @@
 #include "../interface/CommonFunctions.h"
 #include <TVector3.h>
+#include <iostream>
 using namespace std;
 
 //extracted from https://github.com/CMS-HSCP/SUSYBSMAnalysis-HSCP/blob/79fa0b3f50969fd92f024fac0ad75a36dbdf389f/test/AnalysisCode/Analysis_CommonFunction.h#L1082
@@ -102,8 +103,13 @@ bool clusterCleaning(vector<int> ampls,  int crosstalkInv, uint8_t * exitCode)
         // Si une seule strip touchée
         if(ampls.size()==1){    NofMax=1;}
 
-
-
+//new ERIC
+/*
+        for (unsigned int i =0; i < ampls.size(); i++) {
+	    std::cout<<ampls[i]<<"-";
+	}
+	std::cout<<endl<<"NofMax = "<<NofMax<<std::endl;
+*/
   // ---  SELECTION EN FONCTION DE LA FORME POUR LES MAXIMA UNIQUES ---------
   //------------------------------------------------------------------------
 //  
