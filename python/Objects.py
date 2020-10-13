@@ -13,6 +13,8 @@ class Cluster:
         self.nsat = 0
         self.nstrips = 0
         self.detid = 0
+        self.xtalkVar = -1
+
 
     def IsGood(self):
     	#return self.shape and self.clean and not self.edge and not self.cut 
@@ -65,8 +67,9 @@ class HSCPCand:
 
     def GetClusterEloss(self,filtered = False):
         if filtered: 
-            print(len(self.clusters),len([c.eloss for c in self.clusters if c.IsGood()])," !!")
-	    return [c.eloss for c in self.clusters if c.IsGood()]
+            #print(len(self.clusters),len([c.eloss for c in self.clusters if c.IsGood()])," !!")
+	    #return [c.eloss for c in self.clusters if c.IsGood()]
+	    return [c.eloss for c in self.clusters if c.xtalkVar<0.2]
         else: 
             return self.eloss
 
@@ -88,10 +91,10 @@ class Estimator:
     def GetMean(self, lowFrac=0., highFrac=1.):
         if not self.Check(lowFrac,highFrac): return 0
         N = len(self.clusters)
-        if N<=0: return 0
+        if N<=0: return [0,0]
         coll = self.clusters[int(lowFrac*N):int(highFrac*N)]
 	N = len(coll)
-        if N<=0: return 0
+        if N<=0: return [0,0]
 	mean = sum(coll)/N
         stddev = pow(sum([c**2 for c in coll])/N-mean**2,0.5)
         return mean,stddev
@@ -100,10 +103,10 @@ class Estimator:
         if not self.Check(lowFrac,highFrac): 
             return 0
         N = len(self.clusters)
-        if N<=0: return 0
+        if N<=0: return [0,0]
         coll = self.clusters[int(lowFrac*N):int(highFrac*N)]
         N = len(coll)
-        if N<=0: return 0
+        if N<=0: return [0,0]
         mean = pow(sum([pow(c,-power)for c in coll])/N,-1./power)
         stddev = pow(sum([ (c-mean)**2 for c in coll])/N,0.5)
         return mean,stddev
