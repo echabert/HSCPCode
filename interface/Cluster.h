@@ -25,6 +25,8 @@ class Cluster{
 		bool sat255_;
 		bool shape_;
 		bool clean_;
+		bool cleanXT_;
+		uint8_t exitcode_;
 		vector<int>	ampls_;
 		vector<ClusterStrip>	VectStrips_; //certaintly useless - could have been ampls only
 		vector<SimHit>	VectSimHits_;
@@ -36,6 +38,7 @@ class Cluster{
 		Cluster(float dedx_charge,float sclus_charge,float pathlength,float eloss,int nstrips,int nsimhits,int detid, int subdetid,bool sat254,bool sat255,bool shape,int firstsclus,int partId,const vector<ClusterStrip> &VectStrip,const vector<SimHit> &VectSimHit);
 		~Cluster();
 		bool IsClean() const;
+		bool IsCleanXT() const;
 		float GetDedxCharge() const;
 		float GetSclusCharge() const;
 		float GetPathLength() const;
@@ -62,6 +65,10 @@ class Cluster{
 		int GetDetId() const;
 		int GetSubDetId() const;
 		int GetMaxStrip() const;
+		uint8_t GetExitCode() const{return exitcode_;}
 
 		void SetClean(bool clean);
+		void SetCleanXT(bool clean);
+		void SetExitCode(uint8_t exitcode) {exitcode_ = exitcode;}
+
 };
