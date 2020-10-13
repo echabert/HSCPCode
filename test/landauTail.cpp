@@ -91,6 +91,8 @@ void DumpCSV(ofstream& ofile,  Builder* b1, int track){
  ofile<<b1->GetNPV()<<","<<b1->GetInstLumi()<<",";
  ofile<<p<<","<<pt<<","<<eta;
  for(unsigned int cluster = 0;cluster<b1->GetVectTrack()[track].GetVectClusters().size();cluster++){
+   int clean = 0;
+   if(b1->GetVectTrack()[track].GetVectClusters()[cluster].IsClean()) clean = 1;
    ofile<<",";
    ofile<<b1->GetVectTrack()[track].GetVectClusters()[cluster].GetLayerLabel()<<",";
    ofile<<b1->GetVectTrack()[track].GetVectClusters()[cluster].GetPathLength()<<",";
@@ -98,13 +100,57 @@ void DumpCSV(ofstream& ofile,  Builder* b1, int track){
     ofile<<b1->GetVectTrack()[track].GetVectClusters()[cluster].GetShape()<<",";
     ofile<<b1->GetVectTrack()[track].GetVectClusters()[cluster].Edge()<<",";
     ofile<<b1->GetVectTrack()[track].GetVectClusters()[cluster].Cut()<<",";
-    ofile<<b1->GetVectTrack()[track].GetVectClusters()[cluster].IsClean()<<",";
+    //ofile<<b1->GetVectTrack()[track].GetVectClusters()[cluster].IsClean()<<",";
+    ofile<<clean<<",";
     ofile<<b1->GetVectTrack()[track].GetVectClusters()[cluster].GetNSatStripBoth()<<",";
     ofile<<b1->GetVectTrack()[track].GetVectClusters()[cluster].GetNStrip()<<",";
+    ofile<<RatioNoverLeadStrip( b1->GetVectTrack()[track].GetVectClusters()[cluster].GetAmpls())<<",";
     ofile<<b1->GetVectTrack()[track].GetVectClusters()[cluster].GetDetId();
   }
   ofile<<endl;
 }
+
+void DumpAmpl(ofstream& ofile, Builder* b1, int track, int layer){
+ float pt                = b1->GetVectTrack()[track].GetPt();
+ float p                 = b1->GetVectTrack()[track].GetP();
+ float eta               = b1->GetVectTrack()[track].GetEta();
+ for(unsigned int cluster = 0;cluster<b1->GetVectTrack()[track].GetVectClusters().size();cluster++){
+     if(layer<0 || b1->GetVectTrack()[track].GetVectClusters()[cluster].GetLayerLabel()==layer){
+         vector<int> ampls = b1->GetVectTrack()[track].GetVectClusters()[cluster].GetAmpls();
+         int isClean            = int(b1->GetVectTrack()[track].GetVectClusters()[cluster].IsClean());
+         int layer            = b1->GetVectTrack()[track].GetVectClusters()[cluster].GetLayerLabel();
+	 //cout<<layer<<" "<<b1->GetVectTrack()[track].GetVectClusters()[cluster].GetLayerLabel()<<endl;
+	 /*
+	 cout<<b1->GetVectTrack()[track].GetVectClusters()[cluster].GetDetId()<<endl;
+	 cout<<b1->GetVectTrack()[track].GetVectClusters()[cluster].GetSubDetId()<<endl;
+	 cout<<b1->GetVectTrack()[track].GetVectClusters()[cluster].GetLayer()<<endl;
+	 */
+	 uint8_t exitCode = b1->GetVectTrack()[track].GetVectClusters()[cluster].GetExitCode();
+	 int sum = std::accumulate(ampls.begin(), ampls.end(), 0);
+	 float plenght = float(b1->GetVectTrack()[track].GetVectClusters()[cluster].GetPathLength());
+	 ofile<<p<<","<<pt<<","<<eta<<","<<layer<<","<<plenght<<","<<isClean<<","<<int(exitCode);
+         isClean            = int(b1->GetVectTrack()[track].GetVectClusters()[cluster].IsCleanXT());
+	 ofile<<","<<isClean;
+	 for(unsigned int i=0;i<ampls.size();i++){
+	     //ofile<<","<<ampls[i]/(sum*1.);
+	     ofile<<","<<ampls[i];
+	     //ofile<<","<<ampls[i];
+	 }
+	 //perform the cluster cleaning
+	 vector<int> xtampls = CrossTalkInv(ampls,0.10,0.04, true);
+	 ofile<<"|";
+	 float xtsum = std::accumulate(xtampls.begin(), xtampls.end(), 0);
+	 for(unsigned int i=0;i<xtampls.size();i++){
+	     if(i>0) ofile<<",";
+	     //ofile<<xtampls[i]/(xtsum*1.);
+	     ofile<<xtampls[i];
+         }
+	 ofile<<endl;
+     }
+ }   
+}
+
+
 
 bool IsPureTrack(const Track& track, float chi2Cut = 2, float missingCut = 1, float validF = 0.99, float validL = 0.99){
    if(track.GetChi2()<chi2Cut && track.GetMissing()<chi2Cut && track.GetValidFraction()>validF && track.GetValidLast()>validL) return true;
@@ -154,6 +200,7 @@ int main(int argc,char** argv){
 
     ofstream ofile("deuteron.csv");
     ofstream ofile2("bkg.csv");
+    ofstream ofileAmpls("Ampls.csv");
 
     //Create the plots
     TH1F hMean("hMean","",200,0,40);
@@ -205,7 +252,7 @@ int main(int argc,char** argv){
     fBB.SetParameters(3.5,3.96);
 
     cout<<"N-entries = "<<nentries<<endl;
-    if(nentries>500000) nentries = 100000;
+    if(nentries>500000) nentries = 1000000;
 
     bool applyCleaning = true;
 
@@ -293,7 +340,15 @@ int main(int argc,char** argv){
 	    
 	    
 	    //Investigation for nstrip vs dE
-	    if(IsPureTrack(b1->GetVectTrack()[track])){
+	    //if(IsPureTrack(b1->GetVectTrack()[track])){
+	    if(true){
+
+	       //if(meanTrunc<4){
+	       //if(estim.GetTrunc40()>fBB.Eval(p)){
+	       if(pt>200 && estim.GetTrunc40()>6){
+		   DumpAmpl(ofileAmpls, b1, track, -1);
+	       }
+
 	       if(b1->GetVectTrack()[track].GetP()<0.6 && meanTrunc<4)
 	    	for(int cluster=0;cluster<b1->GetVectTrack()[track].GetNCluster();cluster++){
 		        int label =  b1->GetVectTrack()[track].GetVectClusters()[cluster].GetLayerLabel();
@@ -382,8 +437,9 @@ int main(int argc,char** argv){
 		    int nclusters_cut = 0;
 		    int nclsuters_clean_cut = 0;
 		    //vector<float>
-		    for(unsigned int icluster = b1->GetVectTrack()[track].GetVectClusters().size();icluster++){
+		    for(unsigned int icluster = 0; icluster<b1->GetVectTrack()[track].GetVectClusters().size();icluster++){
 		        bool clean = b1->GetVectTrack()[track].GetVectClusters()[icluster].IsClean();
+			//if(clean) cout<<"Cleaning: "<<clean<<endl;
 			bool cut = RatioNoverLeadStrip( b1->GetVectTrack()[track].GetVectClusters()[icluster].GetAmpls())>0.2;
 			if(clean) hClusterCounter_highp.SetBinContent(3,hClusterCounter_highp.GetBinContent(3));
 			if(cut) hClusterCounter_highp.SetBinContent(4,hClusterCounter_highp.GetBinContent(4));
@@ -391,8 +447,8 @@ int main(int argc,char** argv){
 		    }
 		    //hMeanClean_highp
 		    hClusterCounter_highp.SetBinContent(2,hClusterCounter_highp.GetBinContent(2)+nclusters);
-		    DumpCSV(ofile2,b1,track);
 		  }
+		    DumpCSV(ofile2,b1,track);
 		  /*
 		  ofile2<<meanTrunc<<","<<meanH2<<","<<mean<<","<<p<<","<<eta;
 		  for(unsigned int cluster = 0;cluster<b1->GetVectTrack()[track].GetVectClusters().size();cluster++){
@@ -427,8 +483,8 @@ int main(int argc,char** argv){
 			hQMIP.Fill(vect_eloss[i]);
 		}
 		//if (p<0.75 && mean>9){
-		//if (p<1.5 && estim.GetTrunc40()>fBB.Eval(p)){
-		if (p>200 && mean>6){
+		if (p<1.5 && estim.GetTrunc40()>fBB.Eval(p)){
+		//if (p>200 && mean>6){
 		//if (p>200 && estim.GetTrunc40()>fBB.Eval(p)){
 		  DumpCSV(ofile,b1,track);
 		  /*
@@ -470,6 +526,7 @@ int main(int argc,char** argv){
     }
     ofile.close();
     ofile2.close();
+    ofileAmpls.close();
     cout<<"#track p<0.75\t"<<hStddevVsMean_lowpt.GetEntries()<<endl;
     cout<<"#track p>10\t"<<hStddevVsMean_highpt.GetEntries()<<endl;
 
