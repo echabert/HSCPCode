@@ -87,9 +87,12 @@ def MassReco(K,C,dedx,p):
 layers = range(1,22)
 layerLabels = ["TIB1","TIB2","TIB3","TIB4","TOB1","TOB2","TOB3","TOB4","TOB5","TOB6","TID1","TID2","TEC1","TEC2","TEC3","TEC4","TEC5","TEC6","TEC7","TEC8","TEC9"]
 
+lowmass = False
 
 #bins in momenta
-pfactor=1   #1000 for stop at 2 TeV
+pfactor=1 
+if not lowmass:
+    pfactor = 1000 #for stop at 2 TeV
 pmin = 0.5*pfactor
 pmax = 1.4*pfactor #1.5
 pstep = 0.05*pfactor
@@ -99,16 +102,19 @@ pbins = [pmin+i*pstep for i in range(npsteps+1)]
 #study estimators
 estimators = {}
 #tuple with (IsH2,IsFiltered,lowFrac,highFrac)
-UseFilter=False
+UseFilter=False #False
 UseHarmonic=False
 estimators["Mean(0,1)"]=(UseFilter,UseHarmonic,0,1)
-estimators["Mean(0.15,1)"]=(UseFilter,UseHarmonic,0.15,1)
+estimators["Mean(0,1)-f"]=(True,UseHarmonic,0,1)
+#estimators["Mean(0.15,1)"]=(UseFilter,UseHarmonic,0.15,1)
 #estimators["Mean(0,0.9)"]=(UseFilter,UseHarmonic,0,0.9)
-estimators["Mean(0,0.85)"]=(UseFilter,UseHarmonic,0,0.85)
+#estimators["Mean(0,0.85)"]=(UseFilter,UseHarmonic,0,0.85)
 #estimators["Mean(0,0.75)"]=(UseFilter,UseHarmonic,0,0.75)
 #estimators["Mean(0,0.65)"]=(UseFilter,UseHarmonic,0,0.65)
 estimators["Mean(0.15,0.85)"]=(UseFilter,UseHarmonic,0.15,0.85)
+estimators["Mean(0.15,0.85)-f"]=(True,UseHarmonic,0.15,0.85)
 estimators["Mean(0.25,0.75)"]=(UseFilter,UseHarmonic,0.25,0.75)
+estimators["Mean(0.25,0.75)-f"]=(True,UseHarmonic,0.25,0.75)
 #estimators["Mean(0,0.6)"]=(UseFilter,UseHarmonic,0,0.6)
 #estimators["Mean(0.15,0.7)"]=(UseFilter,UseHarmonic,0.15,0.7)
 #estimators["Mean(0.4,0.7)"]=(UseFilter,UseHarmonic,0.4,0.7)
@@ -126,10 +132,13 @@ fitFile = open("fitRes_deuteron.txt")
 
 #file to be analyzed
 #filename = "../bin/deuteron.csv"
-#filename = "deuteron.csv"
-filename = "deuteron_light.csv"
+#filename = "deuteron_light.csv"
 #filename = "stop2000.csv"
-#filename = "bkg_light2.csv"
+filename = ""
+if lowmass:
+    filename = "deuteron.csv"
+else:
+    filename = "bkg_light2.csv"
 
 # most important line
 # running over the data !!!
@@ -270,8 +279,10 @@ for estim in estimators:
     #for ibin in range(len(pbins)):
        #Estim_P_list[(estim,ibin)] = []
       # Estim_P_res[(estim,ibin)] = None
-    #PlotMass[estim] = TH1F("Mass_"+estim,"",100,0,1000)
-    PlotMass[estim] = TH1F("Mass_"+estim,"",100,0.5,3)
+    if lowmass:
+        PlotMass[estim] = TH1F("Mass_"+estim,"",100,0.5,3)
+    else:
+        PlotMass[estim] = TH1F("Mass_"+estim,"",100,0,1000)
     for line in fitContent.split("\n"):
         print(line)
 	if len(line.split()) == 0: continue
@@ -295,15 +306,16 @@ for cand in cands:
     for estim in estimators:
         #estimation 
  	e = Estimator(cand[1].GetClusterEloss(estimators[estim][0])) 
-	dedx = 0
+	dedx = []
 	if estimators[estim][1]: dedx = e.GetHarmonic(estimators[estim][2],estimators[estim][3])
         else:  dedx = e.GetMean(estimators[estim][2],estimators[estim][3])
 	#reconstruct the mass
-	mass = MassReco(Estim_fit[estim][0],Estim_fit[estim][1],dedx[0],cand[1].p) 
-	if mass>1000: mass = 999.
-	weight = 0
-	if pDistrib.GetBinContent(pDistrib.FindBin(cand[1].p)): weight = pDistrib.GetBinContent(pDistrib.FindBin(cand[1].p))
-	PlotMass[estim].Fill(mass,weight)
+	if len(dedx)>0:
+	    mass = MassReco(Estim_fit[estim][0],Estim_fit[estim][1],dedx[0],cand[1].p) 
+  	    if mass>1000: mass = 999.
+	    weight = 1
+	    #if pDistrib.GetBinContent(pDistrib.FindBin(cand[1].p)): weight = pDistrib.GetBinContent(pDistrib.FindBin(cand[1].p))
+	    PlotMass[estim].Fill(mass,weight)
 
 #statistics per estimator
 #for estim in estimators:
