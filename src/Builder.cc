@@ -1,8 +1,10 @@
 #include <iostream>
 #include <vector>
+#include <typeinfo>
 
 #include "../interface/Builder.h"
 
+#define StripClusterOnly
 
 using namespace std;
 
@@ -170,9 +172,15 @@ void Builder::GetEntry(int i)
 					//cout<<"clust "<<iclust<<" "<<dedx_isstrip[iclust]<<endl;
                     if(dedx_isstrip[iclust]==true && dedx_charge[iclust]>0 && dedx_pathlength[iclust]>0)
                     {
-                        vector<ClusterStrip> VectStrips;
+                        
+			#ifdef StripClusterOnly
+			if(!dedx_isstrip[iclust]) continue;
+		        #endif	
+			vector<ClusterStrip> VectStrips;
                         vector<SimHit> VectSimHits;
-                        for(int istrip=sclus_index_strip[iclust];istrip<sclus_index_strip[iclust]+sclus_nstrip[iclust];istrip++)
+                        
+			
+			for(int istrip=sclus_index_strip[iclust];istrip<sclus_index_strip[iclust]+sclus_nstrip[iclust];istrip++)
                         {
 							//cout<<"strip "<<istrip<<endl;
                             ClusterStrip strip1(strip_ampl[istrip]);
@@ -190,10 +198,30 @@ void Builder::GetEntry(int i)
 			//if the eloss is not found/filled in the tree ...
 			sclus_eloss[iclust] = sclus_charge[iclust]*(3.61*pow(10,-9)*247)*1000/dedx_pathlength[iclust];
 			Cluster clust1(dedx_charge[iclust],sclus_charge[iclust]*(3.61*pow(10,-9)*247),dedx_pathlength[iclust],sclus_eloss[iclust],sclus_nstrip[iclust],0,dedx_detid[iclust],dedx_subdetid[iclust],sclus_sat254[iclust],sclus_sat255[iclust],sclus_shape[iclust],sclus_firstsclus[iclust],0,VectStrips,VectSimHits);
-			clust1.SetClean(sclus_clean && sclus_clean2);
-			//cout<<"ah"<<endl;
+			//if(!sclus_clean[iclust] || !sclus_clean2[iclust]) cout<<"not clean !"<<endl;
+			
+			uint8_t  exitCode;
+		        vector<int> ampls;
+			for(int istrip=sclus_index_strip[iclust];istrip<sclus_index_strip[iclust]+sclus_nstrip[iclust];istrip++){
+			    if(strip_ampl[istrip]>0) ampls.push_back(strip_ampl[istrip]);
+			    else{ break;}
+			}
+			bool isclean = clusterCleaning(ampls, 0, &exitCode);
+			clust1.SetClean(isclean);
+			clust1.SetExitCode(exitCode);
+			isclean = clusterCleaning(ampls, 1, &exitCode);
+			clust1.SetCleanXT(isclean);
+			//clust1.SetClean(sclus_clean[iclust] && sclus_clean2[iclust]);
+			//if(!clust1.IsClean())cout<<"ah"<<endl;
 						//if(clust1.Cut()==false && clust1.Edge()==false) 
+			//if(isclean) cout<<"isclean "<<clust1.IsClean()<<endl;
 							VectClust.push_back(clust1); //filtre sur les clusters
+						/*
+						if(isclean){ 
+						   cout<<typeid(VectClust.end()->IsClean()).name()<<endl;
+						   cout<<VectClust.end()->IsClean()<<endl;
+						}
+						*/
 						SizeSimHit=VectSimHits.size();
                     }
                 }//cout<<VectClust.size()<<"/"<<track_nhits[itrack]<<endl;
